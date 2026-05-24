@@ -1,9 +1,19 @@
-#pragma once
+﻿#pragma once
 
 #include <cstdint>
 #include <string>
 
 namespace Roguelike {
+
+inline std::string utf8String(const char* s) {
+    return std::string(s);
+}
+
+#if defined(__cpp_char8_t)
+inline std::string utf8String(const char8_t* s) {
+    return std::string(reinterpret_cast<const char*>(s));
+}
+#endif
 
 // ---------------------------------------------------------------------------
 // Suit: 트럼프 카드 4가지 속성
@@ -42,11 +52,11 @@ inline float getSuitMultiplier(Suit attacker, Suit defender) noexcept {
 
 inline std::string suitToString(Suit s) noexcept {
     switch (s) {
-        case Suit::Heart:   return "♥ Heart";
-        case Suit::Diamond: return "♦ Diamond";
-        case Suit::Club:    return "♣ Club";
-        case Suit::Spade:   return "♠ Spade";
-        case Suit::None:    return "∅ None";
+        case Suit::Heart:   return utf8String(u8"♥ Heart");
+        case Suit::Diamond: return utf8String(u8"♦ Diamond");
+        case Suit::Club:    return utf8String(u8"♣ Club");
+        case Suit::Spade:   return utf8String(u8"♠ Spade");
+        case Suit::None:    return utf8String(u8"∅ None");
         default:            return "?";
     }
 }
@@ -64,10 +74,10 @@ inline char suitToChar(Suit s) noexcept {
 
 inline std::string suitToSymbol(Suit s) noexcept {
     switch (s) {
-        case Suit::Heart:   return "♥";
-        case Suit::Diamond: return "♦";
-        case Suit::Club:    return "♣";
-        case Suit::Spade:   return "♠";
+        case Suit::Heart:   return utf8String(u8"♥");
+        case Suit::Diamond: return utf8String(u8"♦");
+        case Suit::Club:    return utf8String(u8"♣");
+        case Suit::Spade:   return utf8String(u8"♠");
         default:            return "?";
     }
 }

@@ -1,6 +1,15 @@
-// baraja_deckbuilding - 로그라이크 덱빌딩
+﻿// baraja_deckbuilding - 로그라이크 덱빌딩
 // Battledemo.cpp의 ASCII 아트 / ANSI 색상 UI 통합
 // 고정 슬롯: 전투 보상에서 "덱에 추가" vs "고정 장착" 선택 가능
+
+#define NOMINMAX
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#include <conio.h>
+
+#ifdef _MSC_VER
+#pragma execution_character_set("utf-8")
+#endif
 
 #include "Map.h"
 #include "MapGenerator.h"
@@ -12,7 +21,6 @@
 
 #include <algorithm>
 #include <chrono>
-#include <conio.h>
 #include <iostream>
 #include <memory>
 #include <random>
@@ -20,8 +28,6 @@
 #include <string>
 #include <thread>
 #include <vector>
-#define NOMINMAX
-#include <windows.h>
 
 using namespace Roguelike;
 

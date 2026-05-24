@@ -1,4 +1,4 @@
-#ifndef ROGUELIKE_MAP_GENERATOR_H
+﻿#ifndef ROGUELIKE_MAP_GENERATOR_H
 #define ROGUELIKE_MAP_GENERATOR_H
 
 #include "Map.h"

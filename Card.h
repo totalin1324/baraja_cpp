@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "Suit.h"
 #include <string>
@@ -33,11 +33,11 @@ enum class CardEffect { Attack, Defend, Heal, DrawCard, DoubleAtk };
 
 inline std::string effectToString(CardEffect e) {
     switch (e) {
-        case CardEffect::Attack:    return "공격";
-        case CardEffect::Defend:    return "방어";
-        case CardEffect::Heal:      return "회복";
-        case CardEffect::DrawCard:  return "드로우";
-        case CardEffect::DoubleAtk: return "강타";
+        case CardEffect::Attack:    return utf8String(u8"공격");
+        case CardEffect::Defend:    return utf8String(u8"방어");
+        case CardEffect::Heal:      return utf8String(u8"회복");
+        case CardEffect::DrawCard:  return utf8String(u8"드로우");
+        case CardEffect::DoubleAtk: return utf8String(u8"강타");
         default: return "?";
     }
 }
@@ -55,7 +55,7 @@ struct Card {
     std::string toString() const {
         std::string s = suitToSymbol(suit) + rankToString(rank)
                       + "[" + effectToString(effect) + " " + std::to_string(value) + "]";
-        if (isPermanent) s += "(고)";
+        if (isPermanent) s += utf8String(u8"(고)");
         return s;
     }
 };
@@ -71,16 +71,16 @@ enum class PokerHand {
 
 inline std::string pokerHandToString(PokerHand h) {
     switch (h) {
-        case PokerHand::None:          return "없음";
-        case PokerHand::OnePair:       return "원 페어";
-        case PokerHand::TwoPair:       return "투 페어";
-        case PokerHand::ThreeOfAKind:  return "트리플";
-        case PokerHand::Straight:      return "스트레이트";
-        case PokerHand::Flush:         return "플러시";
-        case PokerHand::FullHouse:     return "풀하우스";
-        case PokerHand::FourOfAKind:   return "포카드";
-        case PokerHand::StraightFlush: return "스트레이트 플러시";
-        case PokerHand::RoyalFlush:    return "로얄 플러시";
+        case PokerHand::None:          return utf8String(u8"없음");
+        case PokerHand::OnePair:       return utf8String(u8"원 페어");
+        case PokerHand::TwoPair:       return utf8String(u8"투 페어");
+        case PokerHand::ThreeOfAKind:  return utf8String(u8"트리플");
+        case PokerHand::Straight:      return utf8String(u8"스트레이트");
+        case PokerHand::Flush:         return utf8String(u8"플러시");
+        case PokerHand::FullHouse:     return utf8String(u8"풀하우스");
+        case PokerHand::FourOfAKind:   return utf8String(u8"포카드");
+        case PokerHand::StraightFlush: return utf8String(u8"스트레이트 플러시");
+        case PokerHand::RoyalFlush:    return utf8String(u8"로얄 플러시");
         default: return "?";
     }
 }

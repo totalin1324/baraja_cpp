@@ -1,4 +1,4 @@
-#include "MapGenerator.h"
+﻿#include "MapGenerator.h"
 
 #include <algorithm>    // std::min, std::max
 #include <array>

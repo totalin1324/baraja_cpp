@@ -1,4 +1,4 @@
-﻿#include "BattleDemo.h"
+﻿#include "Battledemo.h"
 
 #include <iostream>
 #include <sstream>     /* 더블 버퍼링용 ostringstream */

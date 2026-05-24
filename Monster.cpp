@@ -1,6 +1,10 @@
-#include "Monster.h"
+﻿#include "Monster.h"
 #include "Map.h"
 #include "player.h"
+#ifdef _MSC_VER
+#pragma execution_character_set("utf-8")
+#endif
+
 #include <iostream>
 #include <cmath>
 #include <algorithm>

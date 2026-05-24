@@ -1,4 +1,4 @@
-#pragma once
+ï»¿#pragma once
 #ifndef BATTLE_DEMO_H
 #define BATTLE_DEMO_H
 
@@ -7,34 +7,34 @@
 
 /*
     BattleDemo.h  (v2)
-    ÀÎÄÚµù ¾ÈÀü ¹öÀü.
-    ¼Ò½º ÁÖ¼®Àº ¸ğµÎ ÇÑ±¹¾î·Î ÀÛ¼º.
-    ÇÑ±¹¾î UI ¹®ÀÚ¿­Àº BattleDemo.cpp ¿¡ UTF-8 ¹ÙÀÌÆ® ¸®ÅÍ·²·Î Á¤ÀÇ.
+    ì¸ì½”ë”© ì•ˆì „ ë²„ì „.
+    ì†ŒìŠ¤ ì£¼ì„ì€ ëª¨ë‘ í•œêµ­ì–´ë¡œ ì‘ì„±.
+    í•œêµ­ì–´ UI ë¬¸ìì—´ì€ BattleDemo.cpp ì— UTF-8 ë°”ì´íŠ¸ ë¦¬í„°ëŸ´ë¡œ ì •ì˜.
 
-    v1 ´ëºñ º¯°æ »çÇ×:
-    - drawBattleUI: ÇÇ°İ ÇÃ·¡½Ã ÆÄ¶ó¹ÌÅÍ Ãß°¡
+    v1 ëŒ€ë¹„ ë³€ê²½ ì‚¬í•­:
+    - drawBattleUI: í”¼ê²© í”Œë˜ì‹œ íŒŒë¼ë¯¸í„° ì¶”ê°€
       (enemyHit, hitDmg, playerHit, playerHitDmg)
-    - ·¹ÀÌ¾Æ¿ô: ÀüÅõ ¾À (»ó´Ü) / ¸Ş´º + ·Î±× (ÇÏ´Ü) À¸·Î ºĞ¸®
-    - drawAttackAnimation Á¦°Å ¡æ
-      drawPlayerAttackAnimation / drawEnemyAttackAnimation À¸·Î ºĞ¸®
+    - ë ˆì´ì•„ì›ƒ: ì „íˆ¬ ì”¬ (ìƒë‹¨) / ë©”ë‰´ + ë¡œê·¸ (í•˜ë‹¨) ìœ¼ë¡œ ë¶„ë¦¬
+    - drawAttackAnimation ì œê±° â†’
+      drawPlayerAttackAnimation / drawEnemyAttackAnimation ìœ¼ë¡œ ë¶„ë¦¬
 */
 
-/* Å° ÀÔ·Â ÄÚµå */
+/* í‚¤ ì…ë ¥ ì½”ë“œ */
 enum KeyCode {
     KEY_UP = 300,
     KEY_DOWN = 301,
     KEY_ENTER = 302
 };
 
-/* ÀüÅõ¿¡ Âü¿©ÇÏ´Â Ä³¸¯ÅÍ ±¸Á¶Ã¼ */
+/* ì „íˆ¬ì— ì°¸ì—¬í•˜ëŠ” ìºë¦­í„° êµ¬ì¡°ì²´ */
 struct Fighter {
-    std::string name;   /* ÀÌ¸§ */
-    int hp;             /* ÇöÀç HP */
-    int maxHp;          /* ÃÖ´ë HP */
-    int atk;            /* °ø°İ·Â */
-    int def;            /* ¹æ¾î·Â */
-    bool defending;     /* ¹æ¾î ÀÚ¼¼ ¿©ºÎ */
-    int potions;        /* º¸À¯ Æ÷¼Ç ¼ö */
+    std::string name;   /* ì´ë¦„ */
+    int hp;             /* í˜„ì¬ HP */
+    int maxHp;          /* ìµœëŒ€ HP */
+    int atk;            /* ê³µê²©ë ¥ */
+    int def;            /* ë°©ì–´ë ¥ */
+    bool defending;     /* ë°©ì–´ ìì„¸ ì—¬ë¶€ */
+    int potions;        /* ë³´ìœ  í¬ì…˜ ìˆ˜ */
 
     Fighter(const std::string& n, int h, int a, int d, int pot = 2);
 
@@ -48,11 +48,11 @@ void clearScreen();
 std::string makeHpBar(int hp, int maxHp, int width = 20);
 
 /* drawBattleUI
- *   enemyHit      - ÀÌ¹ø ÇÁ·¹ÀÓ¿¡ Àû ¾ÆÆ®¸¦ »¡°£»öÀ¸·Î ÇÃ·¡½Ã
- *   hitDmg        - Àû ±ÙÃ³¿¡ Ç¥½ÃÇÒ µ¥¹ÌÁö ¼öÄ¡ (0 ÀÌ¸é ¼û±è)
- *   playerHit     - ÀÌ¹ø ÇÁ·¹ÀÓ¿¡ ÇÃ·¹ÀÌ¾î ¾ÆÆ®¸¦ »¡°£»öÀ¸·Î ÇÃ·¡½Ã
- *   playerHitDmg  - ÇÃ·¹ÀÌ¾î ±ÙÃ³¿¡ Ç¥½ÃÇÒ µ¥¹ÌÁö ¼öÄ¡ (0 ÀÌ¸é ¼û±è)
- *   ÇÇ°İ ÆÄ¶ó¹ÌÅÍ´Â ¸ğµÎ ±âº»°ªÀÌ false/0 ÀÌ¹Ç·Î ±âÁ¸ È£ÃâºÎ´Â ¼öÁ¤ ºÒÇÊ¿ä.
+ *   enemyHit      - ì´ë²ˆ í”„ë ˆì„ì— ì  ì•„íŠ¸ë¥¼ ë¹¨ê°„ìƒ‰ìœ¼ë¡œ í”Œë˜ì‹œ
+ *   hitDmg        - ì  ê·¼ì²˜ì— í‘œì‹œí•  ë°ë¯¸ì§€ ìˆ˜ì¹˜ (0 ì´ë©´ ìˆ¨ê¹€)
+ *   playerHit     - ì´ë²ˆ í”„ë ˆì„ì— í”Œë ˆì´ì–´ ì•„íŠ¸ë¥¼ ë¹¨ê°„ìƒ‰ìœ¼ë¡œ í”Œë˜ì‹œ
+ *   playerHitDmg  - í”Œë ˆì´ì–´ ê·¼ì²˜ì— í‘œì‹œí•  ë°ë¯¸ì§€ ìˆ˜ì¹˜ (0 ì´ë©´ ìˆ¨ê¹€)
+ *   í”¼ê²© íŒŒë¼ë¯¸í„°ëŠ” ëª¨ë‘ ê¸°ë³¸ê°’ì´ false/0 ì´ë¯€ë¡œ ê¸°ì¡´ í˜¸ì¶œë¶€ëŠ” ìˆ˜ì • ë¶ˆí•„ìš”.
  */
 void drawBattleUI(const Fighter& player,
     const Fighter& enemy,

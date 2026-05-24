@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "Suit.h"
 #include "Card.h"
