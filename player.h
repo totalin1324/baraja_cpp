@@ -42,7 +42,7 @@ public:
     const Deck& getDeck() const { return deck_; }
 
     // 카드 보상 수령
-    void receiveCard(const Card& card) { deck_.addCard(card); }
+    bool receiveCard(const Card& card) { return deck_.addCard(card); }
 
     // 전투 시작 시 핸드 드로우
     void drawHand() { deck_.drawHand(); }

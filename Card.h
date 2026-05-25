@@ -169,6 +169,7 @@ class Deck {
 public:
     static constexpr int HAND_SIZE    = 5;
     static constexpr int MAX_PERM     = 3; // 고정 슬롯 최대 개수
+    static constexpr int MAX_CARDS    = 30; // 보유 가능한 전체 카드 수
 
     Deck() {
         for (Suit s : {Suit::Heart, Suit::Diamond, Suit::Club, Suit::Spade}) {
@@ -179,33 +180,50 @@ public:
     }
 
     // ---------- 카드 추가 ----------
-    void addCard(const Card& card) {
+    bool addCard(const Card& card) {
+        if (!canAddCard()) return false;
         Card c = card;
         c.isPermanent = false;
         drawPile_.push_back(c);
+        return true;
     }
 
     // 고정 슬롯에 장착 (최대 MAX_PERM)
     bool equipPermanent(const Card& card) {
         if ((int)permanentSlots_.size() >= MAX_PERM) return false;
+        if (!canAddCard()) return false;
         Card c = card;
         c.isPermanent = true;
         permanentSlots_.push_back(c);
         return true;
     }
 
+    bool canAddCard() const { return totalCards() < MAX_CARDS; }
+    int  maxCards()   const { return MAX_CARDS; }
+    int  freeSlots()  const { return std::max(0, MAX_CARDS - totalCards()); }
     bool canEquipMore() const { return (int)permanentSlots_.size() < MAX_PERM; }
     int  permCount()   const { return (int)permanentSlots_.size(); }
 
     // ---------- 핸드 드로우 ----------
     // 핸드 = 고정 슬롯 + 드로우 파일에서 나머지
     void drawHand() {
-        hand_.clear();
+        returnHandToDiscard_();
         // 고정 슬롯 먼저 (항상 핸드 앞자리)
         for (const auto& c : permanentSlots_) hand_.push_back(c);
         // 나머지를 덱에서 채움
         int toDraw = HAND_SIZE - (int)permanentSlots_.size();
         for (int i = 0; i < toDraw; ++i) drawOne_();
+    }
+
+    int drawCards(int count) {
+        int drawn = 0;
+        while (count-- > 0 && (int)hand_.size() < HAND_SIZE) {
+            int before = (int)hand_.size();
+            drawOne_();
+            if ((int)hand_.size() == before) break;
+            ++drawn;
+        }
+        return drawn;
     }
 
     // ---------- 카드 사용 ----------
@@ -228,9 +246,7 @@ public:
     }
 
     void discardAll() {
-        for (auto& c : hand_)
-            if (!c.isPermanent) discardPile_.push_back(c);
-        hand_.clear();
+        returnHandToDiscard_();
     }
 
     // ---------- 조회 ----------
@@ -242,7 +258,13 @@ public:
 
     int deckSize()    const { return (int)drawPile_.size(); }
     int discardSize() const { return (int)discardPile_.size(); }
-    int totalCards()  const { return (int)(drawPile_.size() + discardPile_.size() + permanentSlots_.size()); }
+    int handSize()    const { return (int)hand_.size(); }
+    int totalCards()  const {
+        return (int)(drawPile_.size()
+                   + discardPile_.size()
+                   + permanentSlots_.size()
+                   + nonPermanentHandCount_());
+    }
 
 private:
     std::vector<Card> drawPile_;
@@ -253,6 +275,17 @@ private:
     void shuffle_() {
         static std::mt19937 rng{std::random_device{}()};
         std::shuffle(drawPile_.begin(), drawPile_.end(), rng);
+    }
+
+    int nonPermanentHandCount_() const {
+        return (int)std::count_if(hand_.begin(), hand_.end(),
+            [](const Card& c){ return !c.isPermanent; });
+    }
+
+    void returnHandToDiscard_() {
+        for (const auto& c : hand_)
+            if (!c.isPermanent) discardPile_.push_back(c);
+        hand_.clear();
     }
 
     void drawOne_() {

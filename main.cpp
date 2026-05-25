@@ -169,7 +169,7 @@ struct BattleUI {
     const std::vector<Card>* hand = nullptr;
     const std::vector<int>*  selected = nullptr;
     // 덱 정보
-    int deckSz, discardSz, permCount, permMax;
+    int deckSz, discardSz, totalCards, maxCards, permCount, permMax;
     // 로그
     std::string log;
     // 애니메이션 플래그
@@ -213,7 +213,8 @@ static void drawBattleScreen(const BattleUI& ui) {
         << "  HP " << makeHpBar(ui.playerHp, ui.playerMaxHp)
         << "  " << ui.playerHp << "/" << ui.playerMaxHp
         << "  ATK:" << ui.playerAtk << "  DEF:" << ui.playerDef << "\n"
-        << "  고정슬롯: " << ui.permCount << "/" << ui.permMax << "\n";
+        << "  고정슬롯: " << ui.permCount << "/" << ui.permMax
+        << "  카드: " << ui.totalCards << "/" << ui.maxCards << "\n";
 
     // 카드 핸드
     buf << "\n" << Color::DIM
@@ -255,7 +256,7 @@ static void drawBattleScreen(const BattleUI& ui) {
 
     buf << Color::DIM << "-------------------------------------------------\n" << Color::RESET;
     buf << "  " << ui.log << "\n";
-    buf << "  덱:" << ui.deckSz << "  버림:" << ui.discardSz << "\n";
+    buf << "  드로우:" << ui.deckSz << "  버림:" << ui.discardSz << "\n";
     buf << Color::BOLD << "=================================================\n" << Color::RESET;
 
     std::cout << buf.str() << std::flush;
@@ -314,6 +315,8 @@ static BattleUI makeUI(const Player& player, const MonsterBase& monster,
     ui.selected    = selected;
     ui.deckSz      = player.getDeck().deckSize();
     ui.discardSz   = player.getDeck().discardSize();
+    ui.totalCards  = player.getDeck().totalCards();
+    ui.maxCards    = player.getDeck().maxCards();
     ui.permCount   = player.getDeck().permCount();
     ui.permMax     = Deck::MAX_PERM;
     ui.log         = log;
@@ -361,13 +364,21 @@ static void cardRewardScreen(Player& player, const CardReward& reward, std::mt19
                               : "    패스 (카드 없이 계속)\n")
                   << Color::RESET;
 
-        // 고정 슬롯 안내
+        // 보유 카드 / 고정 슬롯 안내
+        const auto& deck = player.getDeck();
         std::cout << "\n  " << Color::CYAN
-                  << "고정 슬롯: " << player.getDeck().permCount()
+                  << "보유 카드: " << deck.totalCards()
+                  << "/" << deck.maxCards()
+                  << "  고정 슬롯: " << deck.permCount()
                   << "/" << Deck::MAX_PERM
                   << "  (카드 선택 후 [D]덱추가 / [F]고정장착)\n"
-                  << Color::RESET
-                  << Color::DIM
+                  << Color::RESET;
+        if (!deck.canAddCard()) {
+            std::cout << Color::RED
+                      << "  보유 카드가 가득 찼습니다. 이번 보상은 패스만 가능합니다.\n"
+                      << Color::RESET;
+        }
+        std::cout << Color::DIM
                   << "  고정 카드는 매 전투 핸드에 항상 포함, 사용해도 소모 안 됨\n"
                   << Color::RESET;
 
@@ -392,7 +403,15 @@ static void cardRewardScreen(Player& player, const CardReward& reward, std::mt19
 
         if (key == KEY_ENTER || key == 'd' || key == 'D') {
             // 덱에 추가
-            player.receiveCard(reward.choices[cardIdx]);
+            if (!player.receiveCard(reward.choices[cardIdx])) {
+                clearScreen();
+                std::cout << Color::RED << Color::BOLD
+                          << "\n  보유 카드 한도 초과! (최대 "
+                          << player.getDeck().maxCards() << "장)\n"
+                          << Color::RESET;
+                sleepMs(1000);
+                continue;
+            }
             clearScreen();
             std::cout << Color::GREEN << Color::BOLD
                       << "\n  카드 획득: " << reward.choices[cardIdx].toString()
@@ -409,7 +428,15 @@ static void cardRewardScreen(Player& player, const CardReward& reward, std::mt19
                 sleepMs(1000);
                 continue;
             }
-            player.getDeck().equipPermanent(reward.choices[cardIdx]);
+            if (!player.getDeck().equipPermanent(reward.choices[cardIdx])) {
+                clearScreen();
+                std::cout << Color::RED << Color::BOLD
+                          << "\n  보유 카드 한도 초과! (최대 "
+                          << player.getDeck().maxCards() << "장)\n"
+                          << Color::RESET;
+                sleepMs(1000);
+                continue;
+            }
             clearScreen();
             std::cout << Color::CYAN << Color::BOLD
                       << "\n  카드 장착: " << reward.choices[cardIdx].toString()
@@ -615,7 +642,9 @@ static void renderMap(const Map& map,
               << "  DEF:" << player.getDefense()
               << "  EXP:" << player.getExp()
               << "  " << Color::CYAN << "고정:" << deck.permCount() << "/" << Deck::MAX_PERM << Color::RESET
-              << "  덱:" << deck.deckSize()
+              << "  카드:" << deck.totalCards() << "/" << deck.maxCards()
+              << "  손패:" << deck.handSize()
+              << "  드로우:" << deck.deckSize()
               << "  버림:" << deck.discardSize()
               << "\n"
               << Color::DIM << "이동: WASD   덱보기: V   종료: Q\n" << Color::RESET;
@@ -632,7 +661,8 @@ static void viewDeck(const Player& player) {
     const auto& deck = player.getDeck();
 
     std::cout << Color::BOLD << Color::YELLOW
-              << "=== 덱 목록 (총 " << deck.totalCards() << "장) ===\n\n"
+              << "=== 덱 목록 (총 " << deck.totalCards()
+              << "/" << deck.maxCards() << "장) ===\n\n"
               << Color::RESET;
 
     // 고정 슬롯
@@ -643,6 +673,18 @@ static void viewDeck(const Player& player) {
         std::cout << "  (비어있음)\n";
     for (const auto& c : deck.permanentSlots())
         std::cout << "  " << cardColor(c.effect) << c.toString() << Color::RESET << "\n";
+
+    // 현재 손패
+    std::cout << "\n" << Color::BOLD
+              << "[현재 손패 " << deck.handSize() << "장]\n" << Color::RESET;
+    if (deck.getHand().empty())
+        std::cout << "  (비어있음)\n";
+    for (const auto& c : deck.getHand()) {
+        std::cout << "  " << cardColor(c.effect) << c.toString() << Color::RESET;
+        if (c.isPermanent)
+            std::cout << Color::CYAN << " ★고정" << Color::RESET;
+        std::cout << "\n";
+    }
 
     // 드로우 파일
     std::cout << "\n" << Color::BOLD

@@ -115,6 +115,15 @@ public:
         // 카드 소모 (고정 카드 제외)
         deck.useMultiFromHand(selectedIndices);
 
+        // 드로우 효과는 사용한 카드가 빠진 뒤 빈 핸드 칸만큼 채운다.
+        if (state.extraDraws > 0) {
+            int drawn = deck.drawCards(state.extraDraws);
+            fullLog += "\033[36m드로우 처리:\033[0m "
+                    + std::to_string(drawn) + "/"
+                    + std::to_string(state.extraDraws)
+                    + "장\n";
+        }
+
         return fullLog;
     }
 };
