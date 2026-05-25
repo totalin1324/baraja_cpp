@@ -3,12 +3,19 @@
 #include "Suit.h"
 #include <string>
 #include <algorithm>
+#include <random>
 
 namespace Roguelike {
 
 // 전방 선언
 class Player;
 class Map;
+
+// 전투 중 적의 한 턴 행동 결과 — 데미지(애니메이션용)와 로그(메시지)를 함께 전달
+struct EnemyAction {
+    int         damage;  // 플레이어에게 가한 데미지. 0이면 비공격 턴(회복·속성변경 등)
+    std::string log;     // 전투 로그에 표시할 메시지
+};
 
 // ---------------------------------------------------------------------------
 // MonsterBase: 추상 기반 클래스
@@ -66,6 +73,11 @@ public:
     // 서브클래스의 onTurn()에서 공통 패턴으로 호출하면 됨
     int attackPlayer(Player& player);
 
+    // 카드 전투 중 적의 한 턴 행동. 기본 구현은 단순 반격.
+    // 보스는 오버라이드하여 콤보·디버프·광폭화 등 특수 패턴을 구현한다.
+    // rng는 게임 전역 난수원 — 보스 특수기의 확률 판정에 사용한다.
+    virtual EnemyAction battleTurn(Player& player, std::mt19937& rng);
+
     // --- 조회 ---
     int  getX()         const { return x_; }
     int  getY()         const { return y_; }
@@ -86,6 +98,10 @@ public:
 protected:
     // 4방향 이동 시도: walkable이고 몬스터 없으면 이동 후 map 위치도 갱신
     bool tryMove(int nx, int ny, Map& map);
+
+    // 카드 전투 반격 데미지 계산 — runCardBattle의 기존 공식을 한 곳에 모음
+    // (attack_ - 플레이어 방어) × 상성, 최소 1
+    int computeBattleDamage(const Player& player) const;
 
     int  x_, y_;
     Suit suit_;

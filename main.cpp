@@ -14,6 +14,7 @@
 #include "Map.h"
 #include "MapGenerator.h"
 #include "Monster.h"
+#include "BossMonster.h"
 #include "player.h"
 #include "Card.h"
 #include "BattleSystem.h"
@@ -489,19 +490,21 @@ static bool runCardBattle(Player& player, MonsterBase& monster, std::mt19937& rn
             battleLog = effectLog;
             selectedCards.clear();
 
-            // 몬스터 반격
+            // 몬스터 반격 (보스는 battleTurn에서 특수 패턴 발동)
             if (monster.isAlive()) {
-                float mult   = getSuitMultiplier(monster.getSuit(), player.getSuit());
-                int   monDmg = std::max(1, static_cast<int>(
-                    (monster.getAttack() - player.getDefense()) * mult));
-                player.takeDamage(monDmg);
+                EnemyAction act = monster.battleTurn(player, rng);
 
-                BattleUI ui = makeUI(player, monster, battleLog);
-                animEnemyAttack(ui, monDmg);
+                if (act.damage > 0) {
+                    BattleUI ui = makeUI(player, monster, battleLog);
+                    animEnemyAttack(ui, act.damage);
+                } else {
+                    // 비공격 턴(회복·속성변경 등) — 공격 애니메이션 대신 로그만 표시
+                    BattleUI ui = makeUI(player, monster, act.log);
+                    drawBattleScreen(ui);
+                    sleepMs(500);
+                }
 
-                battleLog += std::string(Color::RED) + monster.name()
-                           + " 반격! " + std::to_string(monDmg) + " 데미지"
-                           + Color::RESET;
+                battleLog += std::string(Color::RED) + act.log + Color::RESET;
             }
 
             // 핸드 소진 시 재드로우
@@ -516,17 +519,19 @@ static bool runCardBattle(Player& player, MonsterBase& monster, std::mt19937& rn
         if (key == 's' || key == 'S' || key == KEY_DOWN) {
             player.getDeck().discardAll();
             player.drawHand();
-            float mult   = getSuitMultiplier(monster.getSuit(), player.getSuit());
-            int   monDmg = std::max(1, static_cast<int>(
-                (monster.getAttack() - player.getDefense()) * mult));
-            player.takeDamage(monDmg);
 
-            BattleUI ui = makeUI(player, monster, "");
-            animEnemyAttack(ui, monDmg);
+            EnemyAction act = monster.battleTurn(player, rng);
+            if (act.damage > 0) {
+                BattleUI ui = makeUI(player, monster, "");
+                animEnemyAttack(ui, act.damage);
+            } else {
+                BattleUI ui = makeUI(player, monster, act.log);
+                drawBattleScreen(ui);
+                sleepMs(500);
+            }
 
             battleLog = "턴 넘김. "
-                      + std::string(Color::RED) + monster.name()
-                      + " 공격! " + std::to_string(monDmg) + " 데미지" + Color::RESET;
+                      + std::string(Color::RED) + act.log + Color::RESET;
             selectedCards.clear();
             continue;
         }
@@ -672,47 +677,76 @@ static std::pair<int,int> uniqueFloor(
 }
 
 // ===========================================================================
-// main
+// 스테이지 / 보스 스폰
 // ===========================================================================
-int main() {
-    initConsole();
 
-    std::mt19937 rng{std::random_device{}()};
+// 스테이지 보스: 3/6/9/12 스테이지에만 등장. nullptr이면 일반 스테이지.
+static std::unique_ptr<MonsterBase> bossForStage(int stage) {
+    switch (stage) {
+    case 3:  return std::make_unique<JBoss>(0, 0);
+    case 6:  return std::make_unique<QBoss>(0, 0);
+    case 9:  return std::make_unique<KBoss>(0, 0);
+    case 12: return std::make_unique<JokerBoss>(0, 0);
+    default: return nullptr;
+    }
+}
 
+// 최종 보스(Joker) 스테이지 여부 — 클리어 시 게임 클리어
+static bool isFinalStage(int stage) { return stage >= 12; }
+
+enum class StageResult { Cleared, Died, Quit };
+
+// 한 스테이지 진행: 맵 생성 → 몬스터 스폰 → play 루프.
+// 플레이어의 스탯·덱·레벨은 유지하고 위치만 새 맵에 재배치한다.
+static StageResult runStage(int stage, Player& player, std::mt19937& rng) {
     Map map(MAP_W, MAP_H);
     makeGenerator(GeneratorType::BSP, rng)->generate(map);
 
     std::vector<std::pair<int,int>> placed;
     auto [px, py] = uniqueFloor(map, rng, placed);
     placed.push_back({px, py});
-    Player player(px, py, Suit::Heart);
+    player.setPosition(px, py);
 
-    Suit monSuits[] = {Suit::Spade, Suit::Diamond, Suit::Club, Suit::Heart, Suit::Spade};
     std::vector<std::unique_ptr<MonsterBase>> monsters;
-    for (int i = 0; i < 5; ++i) {
+
+    // 보스 스폰 (해당 스테이지면)
+    auto boss = bossForStage(stage);
+    const bool bossStage = (boss != nullptr);
+    if (bossStage) {
+        auto [bx, by] = uniqueFloor(map, rng, placed);
+        placed.push_back({bx, by});
+        boss->setPosition(bx, by);
+        map.addMonsterPos(bx, by);
+        monsters.push_back(std::move(boss));
+    }
+
+    // 고블린 스폰: 보스 스테이지=2마리, 일반=3+stage/2 (상한 8)
+    Suit monSuits[] = {Suit::Spade, Suit::Diamond, Suit::Club, Suit::Heart};
+    const int goblinCount = bossStage ? 2 : std::min(8, 3 + stage / 2);
+    for (int i = 0; i < goblinCount; ++i) {
         auto [mx, my] = uniqueFloor(map, rng, placed);
         placed.push_back({mx, my});
         monsters.push_back(std::make_unique<BasicMonster>(mx, my, monSuits[i % 4]));
         map.addMonsterPos(mx, my);
     }
 
-    std::string lastMsg;
+    std::string lastMsg = "STAGE " + std::to_string(stage)
+                        + (bossStage ? "  [보스 등장!]" : "");
 
     while (player.isAlive()) {
         bool allDead = std::all_of(monsters.begin(), monsters.end(),
             [](const auto& m){ return !m->isAlive(); });
         if (allDead) {
-            renderMap(map, player, monsters, "");
-            std::cout << "\n" << Color::GREEN << Color::BOLD
-                      << "  === 모든 몬스터 처치! 승리! ===\n" << Color::RESET;
-            break;
+            renderMap(map, player, monsters, "스테이지 클리어!");
+            sleepMs(600);
+            return StageResult::Cleared;
         }
 
         renderMap(map, player, monsters, lastMsg);
         lastMsg.clear();
 
         int key = readKey();
-        if (key == 'q' || key == 'Q') break;
+        if (key == 'q' || key == 'Q') return StageResult::Quit;
         if (key == 'v' || key == 'V') { viewDeck(player); continue; }
 
         int dx = 0, dy = 0;
@@ -749,10 +783,39 @@ int main() {
             if (m->isAlive()) m->onTurn(player, map);
     }
 
-    if (!player.isAlive()) {
-        renderMap(map, player, monsters, "");
-        std::cout << "\n" << Color::RED << Color::BOLD
-                  << "  === 게임 오버 ===\n" << Color::RESET;
+    return StageResult::Died;
+}
+
+// ===========================================================================
+// main
+// ===========================================================================
+int main() {
+    initConsole();
+
+    std::mt19937 rng{std::random_device{}()};
+    Player player(0, 0, Suit::Heart);  // 위치는 runStage에서 재배치
+
+    for (int stage = 1; ; ++stage) {
+        StageResult r = runStage(stage, player, rng);
+
+        if (r == StageResult::Quit) break;
+
+        if (r == StageResult::Died) {
+            std::cout << "\n" << Color::RED << Color::BOLD
+                      << "  === 게임 오버 (STAGE " << stage << ") ===\n" << Color::RESET;
+            break;
+        }
+
+        // Cleared
+        if (isFinalStage(stage)) {
+            std::cout << "\n" << Color::YELLOW << Color::BOLD
+                      << "  === 최종 보스 격파! 게임 클리어! ===\n" << Color::RESET;
+            break;
+        }
+
+        std::cout << "\n" << Color::GREEN << Color::BOLD
+                  << "  === STAGE " << stage << " 클리어! 다음 스테이지로 ===\n" << Color::RESET;
+        sleepMs(900);
     }
 
     std::cout << "\n종료하려면 아무 키나...";

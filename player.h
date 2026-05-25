@@ -26,6 +26,7 @@ public:
     int  getExp()    const;
     Suit getSuit()   const;
     void setSuit(Suit suit);
+    void setDefense(int def);  // 디버프 등으로 방어력 변경 (0 미만 클램프)
 
     // --- 전투 ---
     void takeDamage(int rawDamage, Suit attackerSuit);

@@ -26,6 +26,7 @@ int  Player::getLevel()   const { return level_; }
 int  Player::getExp()     const { return exp_; }
 Suit Player::getSuit()    const { return suit_; }
 void Player::setSuit(Suit suit) { suit_ = suit; }
+void Player::setDefense(int def) { defense_ = std::max(0, def); }
 
 void Player::takeDamage(int rawDamage, Suit attackerSuit) {
     float multiplier = getSuitMultiplier(attackerSuit, suit_);

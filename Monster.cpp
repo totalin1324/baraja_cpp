@@ -29,6 +29,25 @@ int MonsterBase::attackPlayer(Player& player) {
 }
 
 // ---------------------------------------------------------------------------
+// MonsterBase::computeBattleDamage
+// 카드 전투 반격 공식 — runCardBattle의 기존 인라인 계산과 동일하게 유지한다.
+// ---------------------------------------------------------------------------
+int MonsterBase::computeBattleDamage(const Player& player) const {
+    float mult = getSuitMultiplier(suit_, player.getSuit());
+    return std::max(1, static_cast<int>((attack_ - player.getDefense()) * mult));
+}
+
+// ---------------------------------------------------------------------------
+// MonsterBase::battleTurn
+// 기본 구현: 단순 반격. 보스는 이를 오버라이드한다.
+// ---------------------------------------------------------------------------
+EnemyAction MonsterBase::battleTurn(Player& player, std::mt19937& /*rng*/) {
+    int dmg = computeBattleDamage(player);
+    player.takeDamage(dmg);
+    return { dmg, name() + " 반격! " + std::to_string(dmg) + " 데미지" };
+}
+
+// ---------------------------------------------------------------------------
 // MonsterBase::tryMove
 // ---------------------------------------------------------------------------
 bool MonsterBase::tryMove(int nx, int ny, Map& map) {
