@@ -19,8 +19,62 @@ struct BattleState {
     int  extraDraws       = 0;
 };
 
+// 선택 조합의 예상 결과 (전투 중 커밋 전 표시용)
+struct SelectionPreview {
+    int       attackDamage = 0; // 상성·강타·족보 보너스 포함 총 공격 데미지
+    int       healAmount   = 0;
+    int       defenseBonus = 0;
+    int       extraDraws   = 0;
+    PokerHand poker        = PokerHand::None;
+};
+
 class BattleSystem {
 public:
+    // playCards와 동일한 공식을 비파괴로 계산만 한다.
+    // ★ 데미지 공식 수정 시 playCards와 반드시 동기화할 것.
+    static SelectionPreview previewSelection(
+        const std::vector<Card>& played,
+        const Player& player,
+        const MonsterBase& monster)
+    {
+        SelectionPreview pv;
+        if (played.empty()) return pv;
+
+        pv.poker    = evaluateHand(played);
+        float phMul = pokerHandMultiplier(pv.poker);
+
+        // 유틸(방어/회복/드로우) — 순서가 결과에 영향 없음
+        for (const auto& c : played) {
+            switch (c.effect) {
+                case CardEffect::Defend:   pv.defenseBonus += c.value; break;
+                case CardEffect::Heal:     pv.healAmount   += c.value; break;
+                case CardEffect::DrawCard: pv.extraDraws   += c.value; break;
+                default: break;
+            }
+        }
+
+        // 공격 + 강타 — playCards의 atkCards와 동일하게 played 순서 유지
+        bool doubleAtk = false;
+        for (const auto& c : played) {
+            if (c.effect == CardEffect::DoubleAtk) {
+                doubleAtk = true;
+            } else if (c.effect == CardEffect::Attack) {
+                float suitMult = getSuitMultiplier(c.suit, monster.getSuit());
+                int   mult     = doubleAtk ? 2 : 1;
+                int   baseDmg  = static_cast<int>(c.value * suitMult) * mult;
+                pv.attackDamage += std::max(1, baseDmg - monster.getDefense());
+                doubleAtk = false;
+            }
+        }
+
+        // 족보 보너스
+        if (pv.poker != PokerHand::None && phMul > 1.0f) {
+            int bonus = static_cast<int>(player.getAttack() * (phMul - 1.0f));
+            if (bonus > 0) pv.attackDamage += bonus;
+        }
+        return pv;
+    }
+
     static std::string applyCard(
         const Card& card,
         Player& player,

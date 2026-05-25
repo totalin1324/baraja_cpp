@@ -204,6 +204,42 @@ public:
     bool canEquipMore() const { return (int)permanentSlots_.size() < MAX_PERM; }
     int  permCount()   const { return (int)permanentSlots_.size(); }
 
+    // ---------- 카드 제거 / 고정 해제 (덱 큐레이션) ----------
+    // 라이브러리(드로우+버림)에서 target과 동일한 카드 1장 제거.
+    // 비고정 카드 총수가 HAND_SIZE 이하로 내려가면 거부(드로우 불능 방지).
+    bool removeLibraryCard(const Card& target) {
+        if ((int)(drawPile_.size() + discardPile_.size()) <= HAND_SIZE)
+            return false;
+        auto sameCard = [&](const Card& c) {
+            return c.suit == target.suit && c.rank == target.rank
+                && c.effect == target.effect && c.value == target.value;
+        };
+        auto it = std::find_if(drawPile_.begin(), drawPile_.end(), sameCard);
+        if (it != drawPile_.end()) { drawPile_.erase(it); return true; }
+        it = std::find_if(discardPile_.begin(), discardPile_.end(), sameCard);
+        if (it != discardPile_.end()) { discardPile_.erase(it); return true; }
+        return false;
+    }
+
+    // 고정 슬롯 해제 → 일반 카드로 드로우 파일에 복귀(카드를 잃지 않음).
+    bool unequipPermanent(int slotIdx) {
+        if (slotIdx < 0 || slotIdx >= (int)permanentSlots_.size()) return false;
+        Card c = permanentSlots_[slotIdx];
+        c.isPermanent = false;
+        permanentSlots_.erase(permanentSlots_.begin() + slotIdx);
+        drawPile_.push_back(c);
+        return true;
+    }
+
+    // 효과별 보유 장수 (고정+드로우+버림 기준, 요약 표시용).
+    int countByEffect(CardEffect e) const {
+        int n = 0;
+        for (const auto& c : permanentSlots_) if (c.effect == e) ++n;
+        for (const auto& c : drawPile_)       if (c.effect == e) ++n;
+        for (const auto& c : discardPile_)    if (c.effect == e) ++n;
+        return n;
+    }
+
     // ---------- 핸드 드로우 ----------
     // 핸드 = 고정 슬롯 + 드로우 파일에서 나머지
     void drawHand() {

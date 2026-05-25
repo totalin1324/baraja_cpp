@@ -172,6 +172,8 @@ struct BattleUI {
     int deckSz, discardSz, totalCards, maxCards, permCount, permMax;
     // 로그
     std::string log;
+    // 선택 조합 예측 (커밋 전 표시)
+    std::string selectionInfo;
     // 애니메이션 플래그
     bool enemyHit  = false; int hitDmg    = 0;
     bool playerHit = false; int playerDmg = 0;
@@ -239,19 +241,10 @@ static void drawBattleScreen(const BattleUI& ui) {
             buf << "\n";
         }
 
-        // 족보 미리보기
-        if (ui.selected && !ui.selected->empty()) {
-            std::vector<Card> preview;
-            for (int idx : *ui.selected)
-                if (idx >= 0 && idx < (int)ui.hand->size())
-                    preview.push_back((*ui.hand)[idx]);
-            PokerHand ph = evaluateHand(preview);
-            if (ph != PokerHand::None)
-                buf << "\n  " << Color::BOLD << Color::YELLOW
-                    << "★ " << pokerHandToString(ph)
-                    << "  x" << pokerHandMultiplier(ph)
-                    << Color::RESET << "\n";
-        }
+        // 선택 조합 예측 (공격/회복/방어/드로우 + 족보)
+        if (!ui.selectionInfo.empty())
+            buf << "\n  " << Color::BOLD << Color::YELLOW
+                << ui.selectionInfo << Color::RESET << "\n";
     }
 
     buf << Color::DIM << "-------------------------------------------------\n" << Color::RESET;
@@ -320,6 +313,33 @@ static BattleUI makeUI(const Player& player, const MonsterBase& monster,
     ui.permCount   = player.getDeck().permCount();
     ui.permMax     = Deck::MAX_PERM;
     ui.log         = log;
+
+    // 선택 조합 예측 라인 구성 (0인 항목은 생략)
+    if (selected && !selected->empty()) {
+        const auto& hand = player.getDeck().getHand();
+        std::vector<Card> played;
+        for (int idx : *selected)
+            if (idx >= 0 && idx < (int)hand.size())
+                played.push_back(hand[idx]);
+
+        SelectionPreview pv = BattleSystem::previewSelection(played, player, monster);
+        std::ostringstream s;
+        s << "예상:";
+        bool any = false;
+        if (pv.attackDamage > 0) { s << " 공격 "   << pv.attackDamage;       any = true; }
+        if (pv.healAmount   > 0) { s << " 회복 +"  << pv.healAmount;         any = true; }
+        if (pv.defenseBonus > 0) { s << " 방어 +"  << pv.defenseBonus;       any = true; }
+        if (pv.extraDraws   > 0) { s << " 드로우 +" << pv.extraDraws << "장"; any = true; }
+        if (!any) {
+            bool hasDouble = std::any_of(played.begin(), played.end(),
+                [](const Card& c){ return c.effect == CardEffect::DoubleAtk; });
+            if (hasDouble) s << " 강타 (다음 공격 2배)";
+        }
+        if (pv.poker != PokerHand::None)
+            s << "  [" << pokerHandToString(pv.poker)
+              << " x" << pokerHandMultiplier(pv.poker) << "]";
+        ui.selectionInfo = s.str();
+    }
     return ui;
 }
 
@@ -450,6 +470,8 @@ static void cardRewardScreen(Player& player, const CardReward& reward, std::mt19
 // ===========================================================================
 // 카드 배틀
 // ===========================================================================
+static void helpScreen(); // 정의는 하단, runCardBattle에서 먼저 사용
+
 static bool runCardBattle(Player& player, MonsterBase& monster, std::mt19937& rng) {
     player.drawHand();
     std::string battleLog = monster.name() + std::string(Color::RED) + " 등장!" + Color::RESET;
@@ -470,6 +492,9 @@ static bool runCardBattle(Player& player, MonsterBase& monster, std::mt19937& rn
         battleLog.clear();
 
         int key = readKey();
+
+        // H: 도움말 (오버레이, 비파괴)
+        if (key == 'h' || key == 'H') { helpScreen(); continue; }
 
         // 1~5: 카드 선택/해제
         if (key >= '1' && key <= '5') {
@@ -564,6 +589,9 @@ static bool runCardBattle(Player& player, MonsterBase& monster, std::mt19937& rn
         }
     }
 
+    // 전투 종료 — 남은 핸드를 버림더미로 정리(전투 사이 덱 상태 정합성 유지)
+    player.getDeck().discardAll();
+
     // 결과
     {
         BattleUI ui = makeUI(player, monster, battleLog);
@@ -647,59 +675,144 @@ static void renderMap(const Map& map,
               << "  드로우:" << deck.deckSize()
               << "  버림:" << deck.discardSize()
               << "\n"
-              << Color::DIM << "이동: WASD   덱보기: V   종료: Q\n" << Color::RESET;
+              << Color::DIM << "이동: WASD   덱관리: V   도움말: H   종료: Q\n" << Color::RESET;
 
     if (!msg.empty())
         std::cout << Color::YELLOW << "  " << msg << Color::RESET << "\n";
 }
 
 // ===========================================================================
-// 덱 보기
+// 도움말 화면
 // ===========================================================================
-static void viewDeck(const Player& player) {
+static void helpScreen() {
     clearScreen();
-    const auto& deck = player.getDeck();
+    std::ostringstream b;
+    b << Color::BOLD << Color::YELLOW
+      << "=================================================\n"
+      << "                  도움말\n"
+      << "=================================================\n" << Color::RESET << "\n";
 
-    std::cout << Color::BOLD << Color::YELLOW
-              << "=== 덱 목록 (총 " << deck.totalCards()
-              << "/" << deck.maxCards() << "장) ===\n\n"
-              << Color::RESET;
+    b << Color::BOLD << "[속성 상성]\n" << Color::RESET
+      << "  순환: " << Color::RED << "♦ > ♥ > ♠ > ♣ > ♦" << Color::RESET << "\n"
+      << "  유리 1.5배 / 불리 0.75배 / 중립·무속성 1.0배\n"
+      << "  (예: ♦로 ♥를 치면 1.5배, ♥로 ♦를 치면 0.75배)\n\n";
 
-    // 고정 슬롯
-    std::cout << Color::CYAN << Color::BOLD
-              << "[★ 고정 슬롯 " << deck.permCount() << "/" << Deck::MAX_PERM << "]\n"
-              << Color::RESET;
-    if (deck.permanentSlots().empty())
-        std::cout << "  (비어있음)\n";
-    for (const auto& c : deck.permanentSlots())
-        std::cout << "  " << cardColor(c.effect) << c.toString() << Color::RESET << "\n";
+    b << Color::BOLD << "[카드 효과]\n" << Color::RESET
+      << "  " << Color::RED    << "공격"   << Color::RESET << ": 적에게 데미지 (상성·강타·족보 영향)\n"
+      << "  " << Color::BLUE   << "방어"   << Color::RESET << ": 이번 턴 방어력 증가\n"
+      << "  " << Color::GREEN  << "회복"   << Color::RESET << ": HP 회복\n"
+      << "  " << Color::CYAN   << "드로우" << Color::RESET << ": 카드 추가 드로우\n"
+      << "  " << Color::YELLOW << "강타"   << Color::RESET << ": 다음 공격 2배\n\n";
 
-    // 현재 손패
-    std::cout << "\n" << Color::BOLD
-              << "[현재 손패 " << deck.handSize() << "장]\n" << Color::RESET;
-    if (deck.getHand().empty())
-        std::cout << "  (비어있음)\n";
-    for (const auto& c : deck.getHand()) {
-        std::cout << "  " << cardColor(c.effect) << c.toString() << Color::RESET;
-        if (c.isPermanent)
-            std::cout << Color::CYAN << " ★고정" << Color::RESET;
-        std::cout << "\n";
-    }
+    b << Color::BOLD << "[족보 보너스 배수]\n" << Color::RESET
+      << "  원페어 1.2  투페어 1.4  트리플 1.6  스트레이트 1.8\n"
+      << "  플러시 2.0  풀하우스 2.3  포카드 2.8\n"
+      << "  스트레이트플러시 3.5  로얄플러시 5.0\n"
+      << "  (스트레이트/플러시 계열은 5장 이상 필요)\n\n";
 
-    // 드로우 파일
-    std::cout << "\n" << Color::BOLD
-              << "[드로우 파일 " << deck.deckSize() << "장]\n" << Color::RESET;
-    for (const auto& c : deck.drawPile())
-        std::cout << "  " << cardColor(c.effect) << c.toString() << Color::RESET << "\n";
+    b << Color::BOLD << "[조작]\n" << Color::RESET
+      << "  맵  : WASD 이동   V 덱 관리   H 도움말   Q 종료\n"
+      << "  전투: 1~5 카드 선택/해제   Enter 사용   S 턴 넘김   H 도움말\n";
 
-    // 버림 파일
-    std::cout << "\n" << Color::DIM
-              << "[버림 파일 " << deck.discardSize() << "장]\n" << Color::RESET;
-    for (const auto& c : deck.discardPile())
-        std::cout << "  " << Color::DIM << c.toString() << Color::RESET << "\n";
-
-    std::cout << "\n아무 키나...";
+    b << "\n" << Color::DIM << "아무 키나..." << Color::RESET;
+    std::cout << b.str() << std::flush;
     readKey();
+}
+
+// ===========================================================================
+// 덱 관리 화면 (정렬·요약 + 카드 제거 / 고정 해제)
+// ===========================================================================
+static void deckManagerScreen(Player& player) {
+    int cursor = 0;
+    std::string msg;
+
+    while (true) {
+        Deck& deck = player.getDeck();
+
+        // 라이브러리(드로우+버림) 정렬 사본: 문양 → 랭크 내림차순
+        std::vector<Card> lib;
+        for (const auto& c : deck.drawPile())    lib.push_back(c);
+        for (const auto& c : deck.discardPile()) lib.push_back(c);
+        std::sort(lib.begin(), lib.end(), [](const Card& a, const Card& b) {
+            if (a.suit != b.suit) return (int)a.suit < (int)b.suit;
+            return (int)a.rank > (int)b.rank;
+        });
+
+        const int permN = deck.permCount();
+        const int libN  = (int)lib.size();
+        const int total = permN + libN;
+        if (total > 0) { if (cursor < 0) cursor = 0; if (cursor >= total) cursor = total - 1; }
+        else cursor = 0;
+
+        clearScreen();
+        std::ostringstream b;
+        b << Color::BOLD << Color::YELLOW
+          << "=== 덱 관리 (총 " << deck.totalCards()
+          << "/" << deck.maxCards() << "장) ===\n" << Color::RESET << "\n";
+
+        // 효과 요약
+        b << "  요약: "
+          << Color::RED    << "공격 "   << deck.countByEffect(CardEffect::Attack)    << "  " << Color::RESET
+          << Color::BLUE   << "방어 "   << deck.countByEffect(CardEffect::Defend)    << "  " << Color::RESET
+          << Color::GREEN  << "회복 "   << deck.countByEffect(CardEffect::Heal)      << "  " << Color::RESET
+          << Color::CYAN   << "드로우 " << deck.countByEffect(CardEffect::DrawCard)  << "  " << Color::RESET
+          << Color::YELLOW << "강타 "   << deck.countByEffect(CardEffect::DoubleAtk) << Color::RESET << "\n\n";
+
+        // 고정 슬롯
+        b << Color::CYAN << Color::BOLD
+          << "[★ 고정 슬롯 " << permN << "/" << Deck::MAX_PERM << "]\n" << Color::RESET;
+        if (permN == 0) b << "    (비어있음)\n";
+        for (int i = 0; i < permN; ++i) {
+            const Card& c = deck.permanentSlots()[i];
+            bool sel = (cursor == i);
+            b << (sel ? (std::string(Color::YELLOW) + Color::BOLD + "  > ") : "    ");
+            b << cardColor(c.effect) << c.toString() << Color::RESET << "\n";
+        }
+
+        // 라이브러리
+        b << "\n" << Color::BOLD << "[라이브러리 " << libN << "장] " << Color::RESET
+          << Color::DIM << "(문양→랭크 순)\n" << Color::RESET;
+        for (int i = 0; i < libN; ++i) {
+            const Card& c = lib[i];
+            bool sel = (cursor == permN + i);
+            b << (sel ? (std::string(Color::YELLOW) + Color::BOLD + "  > ") : "    ");
+            b << cardColor(c.effect) << c.toString() << Color::RESET << "\n";
+        }
+
+        b << "\n" << Color::DIM
+          << "-------------------------------------------------\n"
+          << "  W/S 이동   R 제거(라이브러리)   U 고정해제   Q 나가기\n" << Color::RESET;
+        if (!msg.empty())
+            b << "  " << Color::YELLOW << msg << Color::RESET << "\n";
+
+        std::cout << b.str() << std::flush;
+        msg.clear();
+
+        int key = readKey();
+        if (key == 'q' || key == 'Q' || key == 27) return; // 27 = ESC
+        if (key == KEY_UP)   { if (total > 0) cursor = (cursor == 0) ? total - 1 : cursor - 1; continue; }
+        if (key == KEY_DOWN) { if (total > 0) cursor = (cursor == total - 1) ? 0 : cursor + 1; continue; }
+
+        const bool onPerm = (cursor < permN);
+
+        if (key == 'u' || key == 'U') {
+            if (!onPerm) { msg = "고정 해제는 고정 슬롯 카드에만 가능합니다."; continue; }
+            deck.unequipPermanent(cursor);
+            msg = "고정 슬롯 카드를 해제했습니다.";
+            continue;
+        }
+        if (key == 'r' || key == 'R') {
+            if (onPerm) { msg = "제거는 라이브러리 카드만 가능합니다. (고정은 U)"; continue; }
+            int libIdx = cursor - permN;
+            if (libIdx < 0 || libIdx >= libN) continue;
+            if (deck.removeLibraryCard(lib[libIdx]))
+                msg = "카드를 덱에서 제거했습니다.";
+            else
+                msg = "덱이 너무 작아 제거할 수 없습니다. (최소 "
+                    + std::to_string(Deck::HAND_SIZE) + "장)";
+            continue;
+        }
+    }
 }
 
 // ===========================================================================
@@ -789,7 +902,8 @@ static StageResult runStage(int stage, Player& player, std::mt19937& rng) {
 
         int key = readKey();
         if (key == 'q' || key == 'Q') return StageResult::Quit;
-        if (key == 'v' || key == 'V') { viewDeck(player); continue; }
+        if (key == 'v' || key == 'V') { deckManagerScreen(player); continue; }
+        if (key == 'h' || key == 'H') { helpScreen(); continue; }
 
         int dx = 0, dy = 0;
         if      (key == 'w' || key == 'W' || key == KEY_UP)   dy = -1;
