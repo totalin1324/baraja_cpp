@@ -12,8 +12,11 @@ baraja_cpp/
 ├── Map.h / Map.cpp     # 맵 타일 컨테이너
 ├── MapGenerator.h/.cpp # 맵 자동 생성 (RandomWalk, BSP)
 ├── Monster.h/.cpp      # 몬스터 기반 클래스 및 구현체
+├── BossMonster.h/.cpp  # 보스 몬스터 (J / Q / K / Joker)
 ├── player.h / player.cpp # 플레이어 캐릭터
-├── main.cpp            # 게임 루프 및 렌더링
+├── Card.h              # 카드 / 덱 시스템 (헤더 전용)
+├── BattleSystem.h      # 카드 효과 적용 (헤더 전용)
+├── main.cpp            # 게임 루프 / 스테이지 / 카드 전투 UI
 ```
 
 모든 코드는 `Roguelike` 네임스페이스 안에 있습니다.
@@ -26,10 +29,10 @@ baraja_cpp/
 
 ```bash
 # g++ (Windows CMD / PowerShell)
-g++ -std=c++17 -Wall -Wextra -o baraja Map.cpp MapGenerator.cpp Monster.cpp player.cpp main.cpp
+g++ -std=c++17 -Wall -Wextra -o baraja Map.cpp MapGenerator.cpp Monster.cpp player.cpp BossMonster.cpp main.cpp
 
 # g++ (Linux / WSL) — conio.h, windows.h 의존성으로 현재 미지원
-g++ -std=c++17 -Wall -Wextra -o baraja Map.cpp MapGenerator.cpp Monster.cpp player.cpp main.cpp
+g++ -std=c++17 -Wall -Wextra -o baraja Map.cpp MapGenerator.cpp Monster.cpp player.cpp BossMonster.cpp main.cpp
 ```
 
 > Windows 환경에서 개발 및 실행을 권장합니다. (`conio.h`, `windows.h` 사용)
@@ -104,6 +107,12 @@ entity.takeDamage(finalDamage);
 | 클래스 | 이름 | HP | 공격 | 방어 | 경험치 | 특징 |
 |-------|------|----|------|------|--------|------|
 | `BasicMonster` | Goblin (`g`) | 10 | 4 | 1 | 8 | 기본 근접 공격 |
+| `JBoss` | Jack (`J`) | 40 | 8 | 2 | 30 | 30% 확률 추가 1타(콤보) |
+| `QBoss` | Queen (`Q`) | 70 | 12 | 4 | 60 | 3턴마다 플레이어 방어력 감소 |
+| `KBoss` | King (`K`) | 120 | 18 | 8 | 120 | HP 절반 이하 시 1회 광폭화 |
+| `JokerBoss` | Joker (`X`) | 200 | 25 | 10 | 300 | 매턴 랜덤(공격/회복/속성변경) |
+
+보스의 특수 패턴은 카드 전투 중 `battleTurn()`에서 발동합니다. 맵에서는 이동하지 않는 정지형입니다.
 
 ---
 
@@ -119,18 +128,22 @@ entity.takeDamage(finalDamage);
 
 ### 게임 루프 (`main.cpp`)
 
-50×22 크기의 BSP 맵에서 플레이어와 고블린 3마리가 배치된 기본 게임 루프입니다.
+50×22 크기의 BSP 맵을 스테이지 단위로 진행합니다. 스테이지를 클리어하면 새 맵이 생성되며, 플레이어의 스탯·덱·레벨은 그대로 유지됩니다.
 
 | 기호 | 의미 |
 |------|------|
 | `@` | 플레이어 |
 | `g` | 고블린 (Goblin) |
+| `J` `Q` `K` `X` | 보스 (Jack / Queen / King / Joker) |
 | `.` | 바닥 (Floor) |
 | `#` | 벽 (Wall) |
 
-- 이동: WASD / 종료: Q
-- 이동 목표 칸에 몬스터가 있으면 자동 공격
-- 모든 몬스터 처치 시 승리 / HP 0이면 게임 오버
+- 이동: WASD / 덱 보기: V / 종료: Q
+- 이동 목표 칸에 몬스터가 있으면 카드 전투에 진입
+- 일반 스테이지: 고블린 `3 + 스테이지/2`마리 (최대 8)
+- 보스 스테이지(3 / 6 / 9 / 12): 해당 보스 1마리 + 고블린 2마리
+- 스테이지 내 모든 몬스터 처치 시 다음 스테이지로 진행
+- HP 0이면 게임 오버 / 최종 보스(Joker, 스테이지 12) 격파 시 게임 클리어
 
 ---
 
@@ -146,4 +159,5 @@ entity.takeDamage(finalDamage);
 - [x] 배틀 UI (별도 전투 화면)
 - [x] 덱빌딩 시스템
 - [x] 아이템 및 카드 시스템
-- [ ] 스테이지 진행 시스템
+- [x] 보스 몬스터 (J / Q / K / Joker) 및 특수기
+- [x] 스테이지 진행 시스템
