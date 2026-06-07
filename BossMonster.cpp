@@ -1,5 +1,5 @@
 ﻿#include "BossMonster.h"
-#include "Player.h"
+#include "player.h"
 #include "Map.h"
 
 #ifdef _MSC_VER
